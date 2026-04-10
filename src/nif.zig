@@ -73,12 +73,12 @@ extern fn enif_map_iterator_next(env: ?*ErlNifEnv, iter: *ErlNifMapIterator) cal
 extern fn enif_map_iterator_destroy(env: ?*ErlNifEnv, iter: *ErlNifMapIterator) callconv(.c) void;
 extern fn enif_inspect_binary(env: ?*ErlNifEnv, term: ERL_NIF_TERM, bin: *ErlNifBinary) callconv(.c) c_int;
 extern fn enif_get_double(env: ?*ErlNifEnv, term: ERL_NIF_TERM, dp: *f64) callconv(.c) c_int;
-extern fn enif_get_uint64(env: ?*ErlNifEnv, term: ERL_NIF_TERM, val: *u64) callconv(.c) c_int;
-extern fn enif_get_int64(env: ?*ErlNifEnv, term: ERL_NIF_TERM, val: *i64) callconv(.c) c_int;
+extern fn enif_get_ulong(env: ?*ErlNifEnv, term: ERL_NIF_TERM, val: *c_ulong) callconv(.c) c_int;
+extern fn enif_get_long(env: ?*ErlNifEnv, term: ERL_NIF_TERM, val: *c_long) callconv(.c) c_int;
 extern fn enif_alloc_binary(size: usize, bin: *ErlNifBinary) callconv(.c) c_int;
 extern fn enif_make_binary(env: ?*ErlNifEnv, bin: *ErlNifBinary) callconv(.c) ERL_NIF_TERM;
 extern fn enif_make_atom(env: ?*ErlNifEnv, name: [*:0]const u8) callconv(.c) ERL_NIF_TERM;
-extern fn enif_make_tuple2(env: ?*ErlNifEnv, e1: ERL_NIF_TERM, e2: ERL_NIF_TERM) callconv(.c) ERL_NIF_TERM;
+extern fn enif_make_tuple_from_array(env: ?*ErlNifEnv, arr: [*]const ERL_NIF_TERM, count: c_uint) callconv(.c) ERL_NIF_TERM;
 extern fn enif_alloc(size: usize) callconv(.c) ?*anyopaque;
 extern fn enif_free(ptr: ?*anyopaque) callconv(.c) void;
 extern fn enif_get_map_size(env: ?*ErlNifEnv, map: ERL_NIF_TERM, size: *usize) callconv(.c) c_int;
@@ -135,7 +135,7 @@ var funcs = [_]NifFunc{
 var entry = ErlNifEntry{
     .major = 2,
     .minor = 17,
-    .name = "Elixir.FlameOn.Processor.NIF",
+    .name = "Elixir.FlameOn.Client.NativeProcessor",
     .num_of_funcs = 1,
     .funcs = &funcs,
     .load = null,
@@ -196,8 +196,8 @@ fn processStacksNif(env: ?*ErlNifEnv, argc: c_int, argv: [*]const ERL_NIF_TERM) 
         paths[i] = bin.data[0..bin.size];
 
         // Value is an integer (duration in microseconds)
-        var dur_signed: i64 = 0;
-        if (enif_get_int64(env, value, &dur_signed) == 0) return makeError(env);
+        var dur_signed: c_long = 0;
+        if (enif_get_long(env, value, &dur_signed) == 0) return makeError(env);
         if (dur_signed < 0) return makeError(env);
         durations[i] = @intCast(dur_signed);
 
@@ -226,11 +226,13 @@ fn processStacksNif(env: ?*ErlNifEnv, argc: c_int, argv: [*]const ERL_NIF_TERM) 
 
     const ok_atom = enif_make_atom(env, "ok");
     const bin_term = enif_make_binary(env, &result_bin);
-    return enif_make_tuple2(env, ok_atom, bin_term);
+    const ok_tuple = [_]ERL_NIF_TERM{ ok_atom, bin_term };
+    return enif_make_tuple_from_array(env, &ok_tuple, 2);
 }
 
 fn makeError(env: ?*ErlNifEnv) ERL_NIF_TERM {
     const error_atom = enif_make_atom(env, "error");
     const reason_atom = enif_make_atom(env, "processing_failed");
-    return enif_make_tuple2(env, error_atom, reason_atom);
+    const err_tuple = [_]ERL_NIF_TERM{ error_atom, reason_atom };
+    return enif_make_tuple_from_array(env, &err_tuple, 2);
 }
