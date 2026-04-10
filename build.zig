@@ -10,6 +10,23 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
+    // NIF shared library
+    const nif_mod = b.createModule(.{
+        .root_source_file = b.path("src/nif.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    nif_mod.addImport("flame_on_processor", mod);
+    const nif = b.addLibrary(.{
+        .linkage = .dynamic,
+        .name = "flame_on_processor_nif",
+        .root_module = nif_mod,
+    });
+    // NIF symbols (enif_*) are provided by the BEAM VM at load time.
+    // Allow undefined symbols so the linker does not fail.
+    nif.linker_allow_shlib_undefined = true;
+    b.installArtifact(nif);
+
     // Tests: run all test blocks from root.zig (which re-exports all modules)
     const lib_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -18,7 +35,6 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
-    _ = mod;
     const run_lib_tests = b.addRunArtifact(lib_tests);
 
     const test_step = b.step("test", "Run tests");
