@@ -25,6 +25,11 @@ pub fn build(b: *std.Build) void {
     // NIF symbols (enif_*) are provided by the BEAM VM at load time.
     // Allow undefined symbols so the linker does not fail.
     nif.linker_allow_shlib_undefined = true;
+
+    // macOS needs -undefined dynamic_lookup for NIF shared libraries.
+    if (nif.rootModuleTarget().os.tag == .macos) {
+        nif.root_module.addRPathSpecial("@loader_path");
+    }
     b.installArtifact(nif);
 
     // Tests: run all test blocks from root.zig (which re-exports all modules)
