@@ -1,38 +1,89 @@
 # flame_on_processor
 
-A Zig library that processes flame graph profiling data into [pprof](https://github.com/google/pprof) protobuf format.
+[![CI](https://github.com/DockYard/flame_on_processor/actions/workflows/ci.yml/badge.svg)](https://github.com/DockYard/flame_on_processor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Takes semicolon-delimited stack paths with durations, filters out functions below a configurable time threshold, and encodes the result as a pprof `Profile` protobuf.
+A Zig library that transforms flame graph profiling data into the [pprof](https://github.com/google/pprof) protobuf format.
+
+It takes semicolon-delimited stack paths paired with durations, filters out functions that fall below a configurable time threshold, and encodes the result as a pprof `Profile` protobuf — ready for visualization in tools like [pprof](https://github.com/google/pprof) and [speedscope](https://www.speedscope.app).
+
+## Installation
+
+Requires **Zig 0.15.2+**.
+
+```sh
+zig fetch --save git+https://github.com/DockYard/flame_on_processor.git
+```
+
+Then add the dependency in your `build.zig`:
+
+```zig
+const flame_on_processor = b.dependency("flame_on_processor", .{
+    .target = target,
+});
+exe.root_module.addImport("flame_on_processor", flame_on_processor.module("flame_on_processor"));
+```
 
 ## Usage
-
-Add as a Zig package dependency, then import:
 
 ```zig
 const processor = @import("flame_on_processor").processor;
 
 const encoded = try processor.process(
     allocator,
-    &.{ "main;compute", "main;render" },
-    &.{ 3000, 4000 },
+    &.{ "main;compute", "main;render", "main;idle" },
+    &.{ 3000, 4000, 200 },
     0.01, // filter threshold: fraction of total time
 );
 defer allocator.free(encoded);
-// `encoded` is pprof protobuf bytes
+// `encoded` contains pprof protobuf bytes
 ```
 
-## Modules
+### Parameters
+
+| Parameter   | Type                    | Description                                                                 |
+|-------------|-------------------------|-----------------------------------------------------------------------------|
+| `allocator` | `std.mem.Allocator`     | Allocator for all internal and returned memory                              |
+| `paths`     | `[]const []const u8`    | Semicolon-delimited stack traces (e.g. `"main;compute;render"`)             |
+| `durations` | `[]const u64`           | Duration in microseconds for each path (parallel array)                     |
+| `threshold` | `f64`                   | Fraction of total time below which functions are filtered out (min `0.005`) |
+
+Returns an allocated `[]u8` containing the protobuf-encoded pprof Profile. Caller owns the memory.
+
+## Architecture
+
+```
+         paths + durations
+               │
+               ▼
+      ┌─────────────────┐
+      │    processor     │   top-level API
+      └────────┬────────┘
+               │
+       ┌───────┴───────┐
+       ▼               ▼
+┌──────────────┐ ┌──────────────┐
+│profile_filter│ │pprof_encoder │
+└──────────────┘ └──────┬───────┘
+                        │
+                        ▼
+                 ┌──────────────┐
+                 │   protobuf   │
+                 └──────────────┘
+```
 
 - **processor** — top-level API: filter then encode in one call
-- **profile_filter** — removes functions whose inclusive time falls below a threshold fraction, consolidating small subtrees
-- **pprof_encoder** — encodes filtered samples into pprof protobuf wire format
-- **protobuf** — low-level protobuf encoding primitives
+- **profile_filter** — removes functions whose inclusive time falls below the threshold, consolidating small subtrees into placeholder entries
+- **pprof_encoder** — encodes filtered samples into pprof protobuf wire format with proper string table deduplication
+- **protobuf** — low-level protobuf encoding primitives (varints, length-delimited fields, packed arrays)
 
-## Building
-
-Requires Zig 0.15+.
+## Development
 
 ```sh
-zig build        # build the library
-zig build test   # run tests
+zig build            # build the library
+zig build test       # run all tests
 ```
+
+## License
+
+[MIT](LICENSE) - Copyright (c) 2025 DockYard, Inc.
