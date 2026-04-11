@@ -16,20 +16,32 @@ jobs:
             os: ubuntu-24.04-arm
           - target: aarch64-macos
             os: macos-latest
+          - target: x86_64-windows
+            os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: goto-bus-stop/setup-zig@v2
+      - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
       - run: zig build -Doptimize=ReleaseFast
-      - run: |
+      - if: runner.os != 'Windows'
+        run: |
           NIF_FILE=$(find zig-out -name "libflame_on_processor_nif.*" -type f | head -1)
           mkdir -p release
           cp "$NIF_FILE" release/
           cd release
           tar czf "flame_on_processor-nif-${{ matrix.target }}.tar.gz" libflame_on_processor_nif.*
           shasum -a 256 "flame_on_processor-nif-${{ matrix.target }}.tar.gz" > "flame_on_processor-nif-${{ matrix.target }}.tar.gz.sha256"
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $nifFile = Get-ChildItem -Path zig-out -Recurse -Filter "flame_on_processor_nif.*" -File | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path release
+          Copy-Item $nifFile.FullName release/
+          Compress-Archive -Path "release/$($nifFile.Name)" -DestinationPath "release/flame_on_processor-nif-${{ matrix.target }}.zip"
+          $hash = (Get-FileHash "release/flame_on_processor-nif-${{ matrix.target }}.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  flame_on_processor-nif-${{ matrix.target }}.zip" | Out-File -Encoding ascii "release/flame_on_processor-nif-${{ matrix.target }}.zip.sha256"
       - uses: actions/upload-artifact@v4
         with:
           name: nif-${{ matrix.target }}

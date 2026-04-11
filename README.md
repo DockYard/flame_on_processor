@@ -7,6 +7,10 @@ A Zig library that transforms flame graph profiling data into the [pprof](https:
 
 It takes semicolon-delimited stack paths paired with durations, filters out functions that fall below a configurable time threshold, and encodes the result as a pprof `Profile` protobuf — ready for visualization in tools like [pprof](https://github.com/google/pprof) and [speedscope](https://www.speedscope.app).
 
+## Platform Support
+
+Tested on Linux (x86_64, aarch64), macOS (aarch64), and Windows (x86_64).
+
 ## Installation
 
 Requires **Zig 0.15.2+**.
