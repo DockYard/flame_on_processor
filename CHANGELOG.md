@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.0.3] - 2026-04-11
+
+### Added
+
+- Windows (x86_64) target support in CI and release workflows
+
+### Fixed
+
+- `c_long` to `u64` bitcast failure on Windows where `c_long` is 32 bits
+
 ## [0.0.2] - 2026-04-10
 
 ### Added
