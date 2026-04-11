@@ -17,6 +17,14 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     nif_mod.addImport("flame_on_processor", mod);
+    nif_mod.addImport("tracer_nif", b.addModule("tracer_nif", .{
+        .root_source_file = b.path("src/tracer_nif.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "flame_on_processor", .module = mod },
+        },
+    }));
     const nif = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "flame_on_processor_nif",

@@ -1,73 +1,26 @@
 const std = @import("std");
 const processor = @import("flame_on_processor");
+const tracer_nif = @import("tracer_nif");
+const nif_types = processor.nif_types;
 
 // ============================================================================
-// Erlang NIF types — defined in Zig to avoid C header cross-compilation issues.
-// These match the OTP 26+ NIF API (version 2.17) for 64-bit targets.
+// Import shared NIF types
 // ============================================================================
 
-const ERL_NIF_TERM = usize;
-const ErlNifEnv = opaque {};
-
-const ErlNifBinary = extern struct {
-    size: usize,
-    data: [*]u8,
-    ref_bin: ?*anyopaque,
-    __spare__: [2]?*anyopaque,
-};
-
-const ErlNifMapIterator = extern struct {
-    map: ERL_NIF_TERM,
-    size: ERL_NIF_TERM,
-    idx: ERL_NIF_TERM,
-    u: extern union {
-        flat: extern struct {
-            ks: ?[*]ERL_NIF_TERM,
-            vs: ?[*]ERL_NIF_TERM,
-        },
-        hash: extern struct {
-            wstack: ?*anyopaque,
-            kv: ?[*]ERL_NIF_TERM,
-        },
-    },
-    __spare__: [2]?*anyopaque,
-};
-
-const ErlNifMapIteratorEntry = enum(c_int) {
-    FIRST = 1,
-    LAST = 2,
-};
-
-const NifFunc = extern struct {
-    name: [*:0]const u8,
-    arity: c_uint,
-    fptr: *const fn (?*ErlNifEnv, c_int, [*]const ERL_NIF_TERM) callconv(.c) ERL_NIF_TERM,
-    flags: c_uint,
-};
-
-const ErlNifEntry = extern struct {
-    major: c_int,
-    minor: c_int,
-    name: [*:0]const u8,
-    num_of_funcs: c_int,
-    funcs: [*]const NifFunc,
-    load: ?*const fn (?*ErlNifEnv, *?*anyopaque, ERL_NIF_TERM) callconv(.c) c_int,
-    reload: ?*const fn (?*ErlNifEnv, *?*anyopaque, ERL_NIF_TERM) callconv(.c) c_int,
-    upgrade: ?*const fn (?*ErlNifEnv, *?*anyopaque, *?*anyopaque, ERL_NIF_TERM) callconv(.c) c_int,
-    unload: ?*const fn (?*ErlNifEnv, ?*anyopaque) callconv(.c) void,
-    vm_variant: [*:0]const u8,
-    options: c_uint,
-    sizeof_ErlNifResourceTypeInit: usize,
-    min_erts: [*:0]const u8,
-};
-
-const ERL_NIF_DIRTY_JOB_CPU_BOUND: c_uint = 1;
+const ERL_NIF_TERM = nif_types.ERL_NIF_TERM;
+const ErlNifEnv = nif_types.ErlNifEnv;
+const ErlNifBinary = nif_types.ErlNifBinary;
+const ErlNifMapIterator = nif_types.ErlNifMapIterator;
+const ErlNifMapIteratorEntry = nif_types.ErlNifMapIteratorEntry;
+const NifFunc = nif_types.NifFunc;
+const ErlNifEntry = nif_types.ErlNifEntry;
+const ERL_NIF_DIRTY_JOB_CPU_BOUND = nif_types.ERL_NIF_DIRTY_JOB_CPU_BOUND;
 
 // ============================================================================
 // Extern NIF API functions — resolved at load time by the BEAM VM.
 // ============================================================================
 
-extern fn enif_map_iterator_create(env: ?*ErlNifEnv, map: ERL_NIF_TERM, iter: *ErlNifMapIterator, entry: ErlNifMapIteratorEntry) callconv(.c) c_int;
+extern fn enif_map_iterator_create(env: ?*ErlNifEnv, map: ERL_NIF_TERM, iter: *ErlNifMapIterator, entry_pos: ErlNifMapIteratorEntry) callconv(.c) c_int;
 extern fn enif_map_iterator_get_pair(env: ?*ErlNifEnv, iter: *ErlNifMapIterator, key: *ERL_NIF_TERM, value: *ERL_NIF_TERM) callconv(.c) c_int;
 extern fn enif_map_iterator_next(env: ?*ErlNifEnv, iter: *ErlNifMapIterator) callconv(.c) void;
 extern fn enif_map_iterator_destroy(env: ?*ErlNifEnv, iter: *ErlNifMapIterator) callconv(.c) void;
@@ -130,15 +83,51 @@ var funcs = [_]NifFunc{
         .fptr = &processStacksNif,
         .flags = ERL_NIF_DIRTY_JOB_CPU_BOUND,
     },
+    .{
+        .name = "enabled",
+        .arity = 3,
+        .fptr = &tracer_nif.nif_enabled,
+        .flags = 0,
+    },
+    .{
+        .name = "trace",
+        .arity = 5,
+        .fptr = &tracer_nif.nif_trace,
+        .flags = 0,
+    },
+    .{
+        .name = "create_trace_buffer",
+        .arity = 1,
+        .fptr = &tracer_nif.nif_create_trace_buffer,
+        .flags = 0,
+    },
+    .{
+        .name = "drain_trace_buffer",
+        .arity = 2,
+        .fptr = &tracer_nif.nif_drain_trace_buffer,
+        .flags = ERL_NIF_DIRTY_JOB_CPU_BOUND,
+    },
+    .{
+        .name = "trace_buffer_stats",
+        .arity = 1,
+        .fptr = &tracer_nif.nif_trace_buffer_stats,
+        .flags = 0,
+    },
+    .{
+        .name = "set_trace_active",
+        .arity = 2,
+        .fptr = &tracer_nif.nif_set_trace_active,
+        .flags = 0,
+    },
 };
 
 var entry = ErlNifEntry{
     .major = 2,
     .minor = 17,
     .name = "Elixir.FlameOn.Client.NativeProcessor",
-    .num_of_funcs = 1,
+    .num_of_funcs = funcs.len,
     .funcs = &funcs,
-    .load = null,
+    .load = &tracer_nif.nif_load,
     .reload = null,
     .upgrade = null,
     .unload = null,
