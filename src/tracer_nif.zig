@@ -184,7 +184,7 @@ pub fn nif_trace(env: ?*ErlNifEnv, argc: c_int, argv: [*]const ERL_NIF_TERM) cal
             var arity_val: c_long = 0;
             if (enif_get_long(env, tuple_elements[2], &arity_val) != 0) {
                 arity = if (arity_val >= 0 and arity_val <= 255)
-                    @intCast(@as(u64, @bitCast(arity_val)))
+                    @intCast(arity_val)
                 else
                     0;
             }
@@ -227,7 +227,7 @@ pub fn nif_create_trace_buffer(env: ?*ErlNifEnv, argc: c_int, argv: [*]const ERL
         return make_error(env, "badarg");
     }
 
-    const capacity: usize = @intCast(@as(u64, @bitCast(size)));
+    const capacity: usize = @intCast(size);
     const buf = RingBuffer.create(capacity) orelse {
         return make_error(env, "alloc_failed");
     };
@@ -276,7 +276,7 @@ pub fn nif_drain_trace_buffer(env: ?*ErlNifEnv, argc: c_int, argv: [*]const ERL_
         return make_error(env, "badarg");
     }
 
-    const count: usize = @intCast(@as(u64, @bitCast(max_count)));
+    const count: usize = @intCast(max_count);
 
     // Allocate temporary buffer for reading entries
     const read_buf = std.heap.page_allocator.alloc(TraceEntry, count) catch {
